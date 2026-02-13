@@ -46,6 +46,7 @@ jobs:
             )
           }}
 
+    steps:
     - name: Parse Kernel Version & Build Summary
       run: |
         VERSION="${{ inputs.version }}"
