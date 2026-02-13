@@ -71,18 +71,19 @@ jobs:
         run: |
           import json
           
-          with open('.github/configs/kernel-versions.json', 'r') as f:
-              config = json.load(f)
-          
-          for key in ["a12-5-10", "a13-5-10", "a13-5-15", "a14-5-15", "a14-6-1", "a15-6-6", "a16-6-12", "custom", "lts"]:
-              versions = config.get(key, [])
+          # Load each kernel type from its own JSON file
+          for key in ["a12-5.10", "a13-5.10", "a13-5.15", "a14-5.15", "a14-6.1", "a15-6.6", "a16-6.12", "custom", "lts"]:
+              with open(f'.github/configs/{key}.json', 'r') as f:
+                  versions = json.load(f)
+              
               matrix_json = json.dumps({"include": [{"version": v} for v in versions]})
-              with open(f"{key}_matrix.json", 'w') as f:
-                  f.write(matrix_json)
               print(f"{key}={matrix_json}")
+              
               import os
+              # Use key without dots for output names
+              output_key = key.replace('.', '-')
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"{key}={matrix_json}\n")
+                  f.write(f"{output_key}={matrix_json}\n")
         shell: python3 {0}
 
   build-a12-5-10:
