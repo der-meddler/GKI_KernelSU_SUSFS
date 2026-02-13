@@ -5,6 +5,9 @@ permissions:
   actions: write
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       release_type:
@@ -83,7 +86,7 @@ jobs:
         shell: python3 {0}
 
   build-a12-5-10:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a12-5-10'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a12-5-10'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -93,12 +96,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-a13-5-10:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a13-5-10'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a13-5-10'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -108,12 +111,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-a13-5-15:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a13-5-15'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a13-5-15'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -123,12 +126,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-a14-5-15:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a14-5-15'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a14-5-15'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -138,12 +141,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-a14-6-1:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a14-6-1'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a14-6-1'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -153,12 +156,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-a15-6-6:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a15-6-6'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a15-6-6'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -168,12 +171,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-a16-6-12:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a16-6-12'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'a16-6-12'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -183,12 +186,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-custom:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'custom'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'custom'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -198,12 +201,12 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   build-lts:
-    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'lts'
+    if: (inputs.kernel_type || 'custom') == 'All' || (inputs.kernel_type || 'custom') == 'lts'
     needs: load-config
     name: "${{ matrix.version }}"
     strategy:
@@ -213,9 +216,9 @@ jobs:
     secrets: inherit
     with:
       version: ${{ matrix.version }}
-      ksu_commit: ${{ inputs.ksu_commit }}
-      build_bypass: ${{ inputs.build_bypass }}
-      feature_set: ${{ inputs.feature_set }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
 
   rej:
     if: always()
@@ -283,7 +286,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    if: ${{ always() && inputs.release_type != 'Actions' }}
+    if: ${{ always() && (inputs.release_type || 'Actions') != 'Actions' }}
     permissions:
       contents: write
     needs:
@@ -313,7 +316,7 @@ jobs:
           exit 1
         fi
         
-        echo "Build succeeded for kernel type: ${{ inputs.kernel_type }}"
+        echo "Build succeeded for kernel type: ${{ inputs.kernel_type || 'custom' }}"
 
     - name: Free Disk Space
       if: true
@@ -336,7 +339,7 @@ jobs:
 
     - name: Generate New Tag
       id: tag
-      if: inputs.release_type != 'Actions'
+      if: (inputs.release_type || 'Actions') != 'Actions'
       run: |
         LATEST_TAG=$(gh api repos/${{ github.repository }}/tags --jq '.[0].name' 2>/dev/null || echo "")
         if [[ "$LATEST_TAG" =~ ^(.*)-r([0-9]+)$ ]]; then
@@ -406,7 +409,7 @@ jobs:
     - name: Create GitHub Release
       run: |
         PRERELEASE_FLAG=""
-        if [ "${{ inputs.release_type }}" == "Pre-Release" ]; then
+        if [ "${{ inputs.release_type || 'Actions' }}" == "Pre-Release" ]; then
           PRERELEASE_FLAG="--prerelease"
         fi
 
@@ -454,7 +457,7 @@ jobs:
       - build-a16-6-12
       - build-custom
       - build-lts
-    if: ${{ always() && (inputs.release_type == 'Actions' || needs.release.result == 'success') }}
+    if: ${{ always() && ((inputs.release_type || 'Actions') == 'Actions' || needs.release.result == 'success') }}
     env:
       NEW_TAG: ${{ needs.release.outputs.new_tag }}
     steps:
@@ -501,7 +504,7 @@ jobs:
         wait
 
     - name: Send Telegram Notification
-      if: inputs.release_type == 'Actions' && false
+      if: (inputs.release_type || 'Actions') == 'Actions' && false
       run: |
         curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
           -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
@@ -514,10 +517,10 @@ jobs:
           -F parse_mode="Markdown"
 
     - name: Send Telegram Notification
-      if: inputs.release_type != 'Actions' && needs.release.result == 'success' && false
+      if: (inputs.release_type || 'Actions') != 'Actions' && needs.release.result == 'success' && false
       run: |
         RELEASE_TYPE_TEXT=""
-        if [ "${{ inputs.release_type }}" == "Pre-Release" ]; then
+        if [ "${{ inputs.release_type || 'Actions' }}" == "Pre-Release" ]; then
           RELEASE_TYPE_TEXT="🧪 *Pre-Release*"
         else
           RELEASE_TYPE_TEXT="🚀 *Release*"
