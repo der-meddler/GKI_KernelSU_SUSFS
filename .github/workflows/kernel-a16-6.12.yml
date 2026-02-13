@@ -1,0 +1,74 @@
+name: Build a16-6.12
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release Type"
+        type: choice
+        options: [ Actions, Pre-Release, Release ]
+        default: Actions
+      ksu_commit:
+        description: "KSU Commit (optional)"
+        type: string
+        default: ""
+        required: false
+      build_bypass:
+        description: "Build Bypass"
+        type: boolean
+        default: false
+      feature_set:
+        description: "Feature Set"
+        type: choice
+        options:
+          - WKSU+SUSFS+BBG
+          - WKSU+BBG
+          - WKSU
+          - BBG
+          - None
+        default: WKSU+SUSFS+BBG
+
+jobs:
+  load-config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.load.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load versions
+        id: load
+        run: |
+          import json
+          import os
+          
+          with open('.github/configs/a16-6.12.json', 'r') as f:
+              versions = json.load(f)
+          
+          matrix_json = json.dumps({"include": [{"version": v} for v in versions]})
+          print(f"matrix={matrix_json}")
+          
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"matrix={matrix_json}\n")
+        shell: python3 {0}
+
+  build:
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.matrix) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit || '' }}
+      build_bypass: ${{ inputs.build_bypass || false }}
+      feature_set: ${{ inputs.feature_set || 'WKSU+SUSFS+BBG' }}
