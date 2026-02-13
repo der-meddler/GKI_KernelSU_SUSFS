@@ -48,11 +48,171 @@ on:
         default: WKSU+SUSFS+BBG
 
 jobs:
-  build-kernels:
-    uses: ./.github/workflows/prepare-kernels.yml
+  load-config:
+    name: Load JSON Config
+    runs-on: ubuntu-latest
+    outputs:
+      a12-5-10: ${{ steps.load.outputs.a12-5-10 }}
+      a13-5-10: ${{ steps.load.outputs.a13-5-10 }}
+      a13-5-15: ${{ steps.load.outputs.a13-5-15 }}
+      a14-5-15: ${{ steps.load.outputs.a14-5-15 }}
+      a14-6-1: ${{ steps.load.outputs.a14-6-1 }}
+      a15-6-6: ${{ steps.load.outputs.a15-6-6 }}
+      a16-6-12: ${{ steps.load.outputs.a16-6-12 }}
+      custom: ${{ steps.load.outputs.custom }}
+      lts: ${{ steps.load.outputs.lts }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load versions
+        id: load
+        run: |
+          import json
+          
+          with open('.github/configs/kernel-versions.json', 'r') as f:
+              config = json.load(f)
+          
+          for key in ["a12-5-10", "a13-5-10", "a13-5-15", "a14-5-15", "a14-6-1", "a15-6-6", "a16-6-12", "custom", "lts"]:
+              versions = config.get(key, [])
+              matrix_json = json.dumps({"include": [{"version": v} for v in versions]})
+              with open(f"{key}_matrix.json", 'w') as f:
+                  f.write(matrix_json)
+              print(f"{key}={matrix_json}")
+              import os
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"{key}={matrix_json}\n")
+        shell: python3 {0}
+
+  build-a12-5-10:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a12-5-10'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a12-5-10) }}
+    uses: ./.github/workflows/build-kernel.yml
     secrets: inherit
     with:
-      kernel_type: ${{ inputs.kernel_type }}
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-a13-5-10:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a13-5-10'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a13-5-10) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-a13-5-15:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a13-5-15'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a13-5-15) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-a14-5-15:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a14-5-15'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a14-5-15) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-a14-6-1:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a14-6-1'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a14-6-1) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-a15-6-6:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a15-6-6'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a15-6-6) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-a16-6-12:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'a16-6-12'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.a16-6-12) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-custom:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'custom'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.custom) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}
+
+  build-lts:
+    if: inputs.kernel_type == 'All' || inputs.kernel_type == 'lts'
+    needs: load-config
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-config.outputs.lts) }}
+    uses: ./.github/workflows/build-kernel.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
       ksu_commit: ${{ inputs.ksu_commit }}
       build_bypass: ${{ inputs.build_bypass }}
       feature_set: ${{ inputs.feature_set }}
@@ -61,7 +221,15 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     needs:
-    - build-kernels
+    - build-a12-5-10
+    - build-a13-5-10
+    - build-a13-5-15
+    - build-a14-5-15
+    - build-a14-6-1
+    - build-a15-6-6
+    - build-a16-6-12
+    - build-custom
+    - build-lts
     steps:
     - name: Download Misc Artifacts
       uses: actions/download-artifact@v5
@@ -119,7 +287,15 @@ jobs:
     permissions:
       contents: write
     needs:
-    - build-kernels
+    - build-a12-5-10
+    - build-a13-5-10
+    - build-a13-5-15
+    - build-a14-5-15
+    - build-a14-6-1
+    - build-a15-6-6
+    - build-a16-6-12
+    - build-custom
+    - build-lts
 
     env:
       GH_TOKEN: ${{ github.token }}
@@ -267,7 +443,17 @@ jobs:
 
   notify-actions:
     runs-on: ubuntu-latest
-    needs: [release, build-kernels]
+    needs: 
+      - release
+      - build-a12-5-10
+      - build-a13-5-10
+      - build-a13-5-15
+      - build-a14-5-15
+      - build-a14-6-1
+      - build-a15-6-6
+      - build-a16-6-12
+      - build-custom
+      - build-lts
     if: ${{ always() && (inputs.release_type == 'Actions' || needs.release.result == 'success') }}
     env:
       NEW_TAG: ${{ needs.release.outputs.new_tag }}
