@@ -193,11 +193,11 @@
     "6.12.58-android16-2025-12"
   ],
   "custom": [
-    "5.10.226-android12-2024-11",
-    "6.1.145-android14-2025-09",
-    "6.1.157-android14-2025-12",
-    "6.1.128-android14-2025-03",
-    "5.10.226-android12-2024-11"
+    "5.10.226-android12-2024-11-vTomsonek",
+    "6.1.145-android14-2025-09-TheWildJames",
+    "6.1.157-android14-2025-12-MarionKernel",
+    "6.1.128-android14-2025-03-Hakan",
+    "5.10.226-android12-2024-11-Neyugn"
   ],
   "lts": [
     "5.10.X-android12-lts",

@@ -51,9 +51,24 @@ jobs:
       run: |
         VERSION="${{ inputs.version }}"
         
-        # Parse format: 5.10.107-android12-2022-04
-        # Split by '-' to get: kernel_full, android_version, os_patch_level
-        IFS='-' read -r KERNEL_FULL ANDROID_VERSION OS_PATCH_LEVEL <<< "$VERSION"
+        # Parse version keeping official suffixes like -exp, but identify custom variants
+        # Format: KERNEL.VERSION-ANDROID-DATE[-SUFFIX]
+        IFS='-' read -r KERNEL_FULL ANDROID_VERSION OS_PATCH_LEVEL SUFFIX <<< "$VERSION"
+        
+        # Determine if suffix is official (short like exp/lts) or custom variant name
+        if [ -n "$SUFFIX" ] && [ ${#SUFFIX} -le 3 ]; then
+          # Short suffix (exp, lts) - include in base version for branch
+          BASE_VERSION="${KERNEL_FULL}-${ANDROID_VERSION}-${OS_PATCH_LEVEL}-${SUFFIX}"
+          VARIANT=""
+        elif [ -n "$SUFFIX" ]; then
+          # Long suffix (custom variant name) - exclude from base version
+          BASE_VERSION="${KERNEL_FULL}-${ANDROID_VERSION}-${OS_PATCH_LEVEL}"
+          VARIANT="$SUFFIX"
+        else
+          # No suffix
+          BASE_VERSION="$VERSION"
+          VARIANT=""
+        fi
         
         # Split kernel_full by '.' to get: major, minor, sublevel
         IFS='.' read -r MAJOR MINOR SUBLEVEL <<< "$KERNEL_FULL"
@@ -65,18 +80,28 @@ jobs:
         echo "SUBLEVEL=$SUBLEVEL" >> $GITHUB_ENV
         echo "ANDROID_VERSION=$ANDROID_VERSION" >> $GITHUB_ENV
         echo "OS_PATCH_LEVEL=$OS_PATCH_LEVEL" >> $GITHUB_ENV
+        echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_ENV
+        if [ -n "$SUFFIX" ] && [ ${#SUFFIX} -le 3 ]; then
+          echo "BRANCH_SUFFIX=$SUFFIX" >> $GITHUB_ENV
+        fi
         
         echo "========================================"
         echo "       Kernel Build Summary"
         echo "========================================"
         echo "Version         : $VERSION"
+        echo "Base Version    : $BASE_VERSION"
         echo "Kernel Version  : $KERNEL_VERSION"
         echo "Sublevel        : $SUBLEVEL"
         echo "Android Version : $ANDROID_VERSION"
         echo "OS Patch Level  : $OS_PATCH_LEVEL"
+        if [ -n "$SUFFIX" ] && [ ${#SUFFIX} -le 3 ]; then
+          echo "Branch Suffix   : $SUFFIX"
+        fi
         echo "Build Type      : ${{ matrix.build_type }}"
         echo "KSU Commit      : ${{ inputs.ksu_commit || 'Default' }}"
-        echo "Variant         : ${{ inputs.variant || 'Standard' }}"
+        if [ -n "$VARIANT" ]; then
+          echo "Custom Variant  : $VARIANT"
+        fi
         echo "Feature Set     : ${{ inputs.feature_set }}"
         echo "========================================"
 
@@ -148,7 +173,11 @@ jobs:
     - name: Initialize and Sync Kernel Source
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
-        FORMATTED_BRANCH="${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}-${{ env.OS_PATCH_LEVEL }}"
+        if [ -n "${{ env.BRANCH_SUFFIX }}" ]; then
+          FORMATTED_BRANCH="${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}-${{ env.OS_PATCH_LEVEL }}-${{ env.BRANCH_SUFFIX }}"
+        else
+          FORMATTED_BRANCH="${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}-${{ env.OS_PATCH_LEVEL }}"
+        fi
 
         repo init -u https://android.googlesource.com/kernel/manifest -b common-${FORMATTED_BRANCH} --repo-rev=v2.16 --depth=1
 
