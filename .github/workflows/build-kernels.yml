@@ -1,0 +1,87 @@
+name: Build Kernels from JSON Config
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_call:
+    inputs:
+      kernel_type:
+        description: "Kernel Type to Build"
+        required: true
+        type: string
+      ksu_commit:
+        required: false
+        type: string
+      build_bypass:
+        required: true
+        type: boolean
+      feature_set:
+        required: false
+        type: string
+        default: 'WKSU+SUSFS+BBG'
+
+jobs:
+  load-versions:
+    name: Load Kernel Versions
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.load.outputs.matrix }}
+      has-custom: ${{ steps.load.outputs.has-custom }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load kernel versions from JSON
+        id: load
+        run: |
+          import json
+          
+          with open('.github/configs/kernel-versions.json', 'r') as f:
+              config = json.load(f)
+          
+          kernel_type = "${{ inputs.kernel_type }}"
+          
+          # Build matrix
+          if kernel_type == "All":
+              versions = []
+              for key in ["a12-5-10", "a13-5-10", "a13-5-15", "a14-5-15", "a14-6-1", "a15-6-6", "a16-6-12"]:
+                  if key in config:
+                      for version in config[key]:
+                          versions.append({"version": version, "kernel_type": key})
+              # Add custom
+              if "custom" in config:
+                  for version in config["custom"]:
+                      versions.append({"version": version, "kernel_type": "custom"})
+              # Add LTS
+              if "lts" in config:
+                  for version in config["lts"]:
+                      versions.append({"version": version, "kernel_type": "lts"})
+          elif kernel_type == "custom":
+              versions = [{"version": v, "kernel_type": "custom"} for v in config.get("custom", [])]
+          elif kernel_type == "lts":
+              versions = [{"version": v, "kernel_type": "lts"} for v in config.get("lts", [])]
+          else:
+              versions = [{"version": v, "kernel_type": kernel_type} for v in config.get(kernel_type, [])]
+          
+          matrix_json = json.dumps({"include": versions})
+          print(f"Matrix: {matrix_json}")
+          
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"matrix={matrix_json}\n")
+              f.write(f"has-custom={'true' if kernel_type == 'custom' or kernel_type == 'All' else 'false'}\n")
+        shell: python3 {0}
+
+  build-kernels:
+    needs: load-versions
+    name: "${{ matrix.version }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.load-versions.outputs.matrix) }}
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      version: ${{ matrix.version }}
+      ksu_commit: ${{ inputs.ksu_commit }}
+      build_bypass: ${{ inputs.build_bypass }}
+      feature_set: ${{ inputs.feature_set }}

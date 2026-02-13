@@ -6,18 +6,10 @@ permissions:
 on:
   workflow_call:
     inputs:
-      android_version:
+      version:
         required: true
         type: string
-      kernel_version:
-        required: true
-        type: string
-      sub_level:
-        required: true
-        type: string
-      os_patch_level:
-        required: true
-        type: string
+        description: "Format: KERNEL_VERSION.SUBLEVEL-ANDROID_VERSION-OS_PATCH_LEVEL (e.g., 5.10.107-android12-2022-04)"
       variant:
         required: false
         type: string
@@ -27,10 +19,14 @@ on:
       build_bypass:
         required: true
         type: boolean
+      feature_set:
+        required: false
+        type: string
+        default: 'WKSU+SUSFS+BBG'
 
 jobs:
   build-gki:
-    name: "${{ inputs.kernel_version }}.${{ inputs.sub_level }}-${{ inputs.android_version }}-${{ inputs.os_patch_level }}-${{ matrix.build_type }}"
+    name: "${{ inputs.version }}-${{ matrix.build_type }}"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -50,19 +46,37 @@ jobs:
             )
           }}
 
-    steps:
-    - name: Build Summary
+    - name: Parse Kernel Version & Build Summary
       run: |
+        VERSION="${{ inputs.version }}"
+        
+        # Parse format: 5.10.107-android12-2022-04
+        # Split by '-' to get: kernel_full, android_version, os_patch_level
+        IFS='-' read -r KERNEL_FULL ANDROID_VERSION OS_PATCH_LEVEL <<< "$VERSION"
+        
+        # Split kernel_full by '.' to get: major, minor, sublevel
+        IFS='.' read -r MAJOR MINOR SUBLEVEL <<< "$KERNEL_FULL"
+        
+        KERNEL_VERSION="$MAJOR.$MINOR"
+        
+        # Export to environment
+        echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_ENV
+        echo "SUBLEVEL=$SUBLEVEL" >> $GITHUB_ENV
+        echo "ANDROID_VERSION=$ANDROID_VERSION" >> $GITHUB_ENV
+        echo "OS_PATCH_LEVEL=$OS_PATCH_LEVEL" >> $GITHUB_ENV
+        
         echo "========================================"
         echo "       Kernel Build Summary"
         echo "========================================"
-        echo "Android Version : ${{ inputs.android_version }}"
-        echo "Kernel Version  : ${{ inputs.kernel_version }}"
-        echo "Sub Level       : ${{ inputs.sub_level }}"
-        echo "Patch Level     : ${{ inputs.os_patch_level }}"
+        echo "Version         : $VERSION"
+        echo "Kernel Version  : $KERNEL_VERSION"
+        echo "Sublevel        : $SUBLEVEL"
+        echo "Android Version : $ANDROID_VERSION"
+        echo "OS Patch Level  : $OS_PATCH_LEVEL"
         echo "Build Type      : ${{ matrix.build_type }}"
         echo "KSU Commit      : ${{ inputs.ksu_commit || 'Default' }}"
         echo "Variant         : ${{ inputs.variant || 'Standard' }}"
+        echo "Feature Set     : ${{ inputs.feature_set }}"
         echo "========================================"
 
     - name: Free Disk Space
@@ -103,7 +117,7 @@ jobs:
 
     - name: Setup Build Environment
       run: |
-        CONFIG="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.sub_level }}"
+        CONFIG="${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}"
         KERNEL_ROOT="$GITHUB_WORKSPACE/$CONFIG"
         mkdir -p "$KERNEL_ROOT"
 
@@ -133,7 +147,7 @@ jobs:
     - name: Initialize and Sync Kernel Source
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
-        FORMATTED_BRANCH="${{ inputs.android_version }}-${{ inputs.kernel_version }}-${{ inputs.os_patch_level }}"
+        FORMATTED_BRANCH="${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}-${{ env.OS_PATCH_LEVEL }}"
 
         repo init -u https://android.googlesource.com/kernel/manifest -b common-${FORMATTED_BRANCH} --repo-rev=v2.16 --depth=1
 
@@ -147,31 +161,31 @@ jobs:
 
     - name: Extract Sublevel and Set File Name
       run: |
-        ACTUAL_SUBLEVEL="${{ inputs.sub_level }}"
+        SUBLEVEL="0"
         if [[ -f "$KERNEL_ROOT/common/Makefile" ]]; then
           EXTRACTED=$(grep '^SUBLEVEL = ' "$KERNEL_ROOT/common/Makefile" | awk '{print $3}')
-          [[ -n "$EXTRACTED" ]] && ACTUAL_SUBLEVEL="$EXTRACTED"
+          [[ -n "$EXTRACTED" ]] && SUBLEVEL="$EXTRACTED"
         fi
 
-        ARTIFACT_BASE="${{ inputs.kernel_version }}.$ACTUAL_SUBLEVEL-${{ inputs.android_version }}-${{ inputs.os_patch_level }}-${{ matrix.build_type }}"
-        echo "ACTUAL_SUBLEVEL=$ACTUAL_SUBLEVEL" >> $GITHUB_ENV
+        ARTIFACT_BASE="${{ env.KERNEL_VERSION }}.$SUBLEVEL-${{ env.ANDROID_VERSION }}-${{ env.OS_PATCH_LEVEL }}-${{ matrix.build_type }}"
+        echo "SUBLEVEL=$SUBLEVEL" >> $GITHUB_ENV
         echo "ARTIFACT_BASE=$ARTIFACT_BASE" >> $GITHUB_ENV
         echo "FILE_NAME=$ARTIFACT_BASE" >> $GITHUB_ENV
 
     - name: Apply glibc 2.38 Compatibility Fix
       run: |
-        # Use ACTUAL_SUBLEVEL for LTS builds, otherwise use the input sub_level
-        if [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.10" && $ACTUAL_SUBLEVEL -le 186 ]] || 
-           [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.15" && $ACTUAL_SUBLEVEL -le 119 ]] || 
-           [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "5.15" && $ACTUAL_SUBLEVEL -le 110 ]] || 
-           [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "6.1" && $ACTUAL_SUBLEVEL -le 43 ]]; then
+        # Use SUBLEVEL for LTS builds, otherwise use the input sub_level
+        if [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.10" && $SUBLEVEL -le 186 ]] || 
+           [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.15" && $SUBLEVEL -le 119 ]] || 
+           [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "5.15" && $SUBLEVEL -le 110 ]] || 
+           [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "6.1" && $SUBLEVEL -le 43 ]]; then
           GLIBC_VERSION=$(ldd --version 2>/dev/null | head -n 1 | awk '{print $NF}') 
           if [ "$(printf '%s\n' "2.38" "$GLIBC_VERSION" | sort -V | head -n1)" = "2.38" ]; then 
             cd "$KERNEL_ROOT/common"
             sed -i '/\$(Q)\$(MAKE) -C \$(SUBCMD_SRC) OUTPUT=\$(abspath \$(dir \$@))\/ \$(abspath \$@)/s//$(Q)$(MAKE) -C $(SUBCMD_SRC) EXTRA_CFLAGS="$(CFLAGS)" OUTPUT=$(abspath $(dir $@))\/ $(abspath $@)/' tools/bpf/resolve_btfids/Makefile 2>/dev/null || true
-            if [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.10" && $ACTUAL_SUBLEVEL -le 186 ]] || 
-               [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.15" && $ACTUAL_SUBLEVEL -le 119 ]] || 
-               [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "5.15" && $ACTUAL_SUBLEVEL -le 110 ]]; then
+            if [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.10" && $SUBLEVEL -le 186 ]] || 
+               [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.15" && $SUBLEVEL -le 119 ]] || 
+               [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "5.15" && $SUBLEVEL -le 110 ]]; then
               sed -i '/char \*buf = NULL;/a int i;' tools/lib/subcmd/parse-options.c 2>/dev/null || true
               sed -i 's/for (int i = 0; subcommands\[i\]; i++) {/for (i = 0; subcommands[i]; i++) {/' tools/lib/subcmd/parse-options.c 2>/dev/null || true
               sed -i '/if (subcommands) {/a int i;' tools/lib/subcmd/parse-options.c 2>/dev/null || true
@@ -181,7 +195,7 @@ jobs:
         fi 
 
     - name: Fix Less Than 6.6.50 Builds
-      if: inputs.android_version == 'android15' && inputs.kernel_version == '6.6'
+      if: env.ANDROID_VERSION == 'android15' && env.KERNEL_VERSION == '6.6'
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         if ! grep -qxF '#include <trace/hooks/fs.h>' ./fs/namespace.c; then
@@ -189,6 +203,7 @@ jobs:
         fi
 
     - name: Add WKSU
+      if: contains(inputs.feature_set, 'WKSU') && inputs.feature_set != 'None'
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         if [[ -n "${{ inputs.ksu_commit }}" ]]; then
@@ -198,8 +213,9 @@ jobs:
         fi
 
     - name: Clone & Apply SUSFS Patches
+      if: contains(inputs.feature_set, 'SUSFS') && inputs.feature_set != 'None'
       run: |
-        SUSFS_BRANCH="gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}"
+        SUSFS_BRANCH="gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}"
         git clone https://gitlab.com/simonpunk/susfs4ksu.git -b "$SUSFS_BRANCH"
 
         SUSFS_VERSION="2.0.0"
@@ -209,89 +225,89 @@ jobs:
         cd "$KERNEL_ROOT/common"
         cp "$SUSFS4KSU/kernel_patches/fs/"* "$KERNEL_ROOT/common/fs/"
         cp "$SUSFS4KSU/kernel_patches/include/linux/"* "$KERNEL_ROOT/common/include/linux/"
-        cp $SUSFS4KSU/kernel_patches/50_add_susfs_in_gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}.patch ./
-        patch -p1 < 50_add_susfs_in_gki-${{ inputs.android_version }}-${{ inputs.kernel_version }}.patch || true
+        cp $SUSFS4KSU/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./
+        patch -p1 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
 
-        if [[ "${{ inputs.android_version }}" == "android12" && "${{ inputs.kernel_version }}" == "5.10" ]]; then
-          if [[ "$ACTUAL_SUBLEVEL" -le 209 ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android12" && "${{ env.KERNEL_VERSION }}" == "5.10" ]]; then
+          if [[ "$SUBLEVEL" -le 209 ]]; then
             sed -i -e 's/goto show_pad;/return 0;/' ./fs/proc/task_mmu.c
           fi 
-          if [[ "$ACTUAL_SUBLEVEL" -le 117 ]]; then
+          if [[ "$SUBLEVEL" -le 117 ]]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a12-5.10/fdinfo.c.patch ./
             patch -p1 < fdinfo.c.patch
           fi
-          if [[ "$ACTUAL_SUBLEVEL" -le 43 ]]; then
+          if [[ "$SUBLEVEL" -le 43 ]]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a12-5.10/base.c.patch ./
             patch -p1 < base.c.patch
           fi
         fi
 
-        if [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.10" ]]; then
-          if [[ "$ACTUAL_SUBLEVEL" -le 107 ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.10" ]]; then
+          if [[ "$SUBLEVEL" -le 107 ]]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a13-5.10/fdinfo.c.patch ./
             patch -p1 < fdinfo.c.patch
           fi
-          if [[ "$ACTUAL_SUBLEVEL" -le 209 && "${{ inputs.os_patch_level }}" != "2024-05" ]]; then
+          if [[ "$SUBLEVEL" -le 209 && "${{ env.OS_PATCH_LEVEL }}" != "2024-05" ]]; then
             sed -i -e 's/goto show_pad;/return 0;/' ./fs/proc/task_mmu.c
           fi
         fi
 
-        if [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.15" ]]; then
-          if [ "$ACTUAL_SUBLEVEL" -le 41 ]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.15" ]]; then
+          if [ "$SUBLEVEL" -le 41 ]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a13-5.15/namespace.c.patch ./
             patch -p1 < namespace.c.patch
           fi
-          if [ "$ACTUAL_SUBLEVEL" -le 41 ]; then
+          if [ "$SUBLEVEL" -le 41 ]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a13-5.15/fdinfo.c.patch ./
             patch -p1 < fdinfo.c.patch
           fi
-          if [ "$ACTUAL_SUBLEVEL" -le 41 ]; then
+          if [ "$SUBLEVEL" -le 41 ]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a13-5.15/open.c.patch ./
             patch -p1 < open.c.patch
           fi
-          if [ "$ACTUAL_SUBLEVEL" -le 41 ]; then
+          if [ "$SUBLEVEL" -le 41 ]; then
             sed -i 's|is_i_uid_not_allowed(i_uid_into_mnt(i_user_ns(inode), inode).val)))|is_i_uid_not_allowed(inode->i_uid.val)))|g' fs/susfs.c
           fi
-          if [[ "$ACTUAL_SUBLEVEL" -le 148 && "${{ inputs.os_patch_level }}" != "2024-05" ]]; then
+          if [[ "$SUBLEVEL" -le 148 && "${{ env.OS_PATCH_LEVEL }}" != "2024-05" ]]; then
             sed -i -e 's/goto show_pad;/return 0;/' ./fs/proc/task_mmu.c
           fi
         fi
 
-        if [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "5.15" ]]; then
-          if [[ "$ACTUAL_SUBLEVEL" -le 148 && "${{ inputs.os_patch_level }}" != "2024-05" ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "5.15" ]]; then
+          if [[ "$SUBLEVEL" -le 148 && "${{ env.OS_PATCH_LEVEL }}" != "2024-05" ]]; then
             sed -i -e 's/goto show_pad;/return 0;/' ./fs/proc/task_mmu.c
           fi
         fi
 
-        if [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "6.1" ]]; then
-          if [[ "$ACTUAL_SUBLEVEL" -ge 145 ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "6.1" ]]; then
+          if [[ "$SUBLEVEL" -ge 145 ]]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a14-6.1/base.c.patch ./
             patch -p1 < base.c.patch
           fi
-          if [[ "$ACTUAL_SUBLEVEL" -le 75 && "${{ inputs.os_patch_level }}" != "2024-05" ]]; then
+          if [[ "$SUBLEVEL" -le 75 && "${{ env.OS_PATCH_LEVEL }}" != "2024-05" ]]; then
             sed -i -e 's/goto show_pad;/return 0;/' ./fs/proc/task_mmu.c
           fi
         fi
 
-        if [[ "${{ inputs.android_version }}" == "android15" && "${{ inputs.kernel_version }}" == "6.6" ]]; then
-          if [[ "$ACTUAL_SUBLEVEL" -ge 98 ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android15" && "${{ env.KERNEL_VERSION }}" == "6.6" ]]; then
+          if [[ "$SUBLEVEL" -ge 98 ]]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a15-6.6/base.c.patch ./
             patch -p1 < base.c.patch
           fi
-          if [[ "$ACTUAL_SUBLEVEL" -le 58 ]]; then
+          if [[ "$SUBLEVEL" -le 58 ]]; then
             cp $KERNEL_PATCHES/wild/susfs_fix_patches/v${SUSFS_VERSION}/a15-6.6/task_mmu.c.patch ./
             patch -p1 < task_mmu.c.patch
           fi
         fi
 
-        if [[ "${{ inputs.android_version }}" == "android16" && "${{ inputs.kernel_version }}" == "6.12" ]]; then
-          if [[ "$ACTUAL_SUBLEVEL" -le 9999 ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android16" && "${{ env.KERNEL_VERSION }}" == "6.12" ]]; then
+          if [[ "$SUBLEVEL" -le 9999 ]]; then
             echo "Nothing to fix!"
           fi
         fi
 
     - name: Add BBG
-      if: false
+      if: contains(inputs.feature_set, 'BBG') && inputs.feature_set != 'None'
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         curl -LSs https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
@@ -308,7 +324,7 @@ jobs:
     - name: Apply Module Check Bypass
       if: ${{ matrix.build_type == 'Bypass' || matrix.build_type == 'Hakan' }}
       run: |
-        if [[ "${{ inputs.kernel_version }}" == "6.1" || "${{ inputs.kernel_version }}" == "6.6" || "${{ inputs.kernel_version }}" == "6.12" ]]; then
+        if [[ "${{ env.KERNEL_VERSION }}" == "6.1" || "${{ env.KERNEL_VERSION }}" == "6.6" || "${{ env.KERNEL_VERSION }}" == "6.12" ]]; then
           TARGET_FILE="$KERNEL_ROOT/common/kernel/module/version.c"
         else
           TARGET_FILE="$KERNEL_ROOT/common/kernel/module.c"
@@ -327,7 +343,7 @@ jobs:
         fi
 
     - name: Fix WiFi and Bluetooth on Samsung 6.6 GKI devices
-      if: ${{ inputs.kernel_version == '6.6' }}
+      if: ${{ env.KERNEL_VERSION == '6.6' }}
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         SYMBOL_LIST=android/abi_gki_aarch64_galaxy
@@ -344,7 +360,7 @@ jobs:
         echo "obj-y += min_kdp.o" >> drivers/Makefile
 
     - name: Fix WiFi and Bluetooth on Xiaomi 6.6 GKI devices
-      if: ${{ ( inputs.kernel_version == '6.6' ) }}
+      if: ${{ ( env.KERNEL_VERSION == '6.6' ) }}
       working-directory: ${{ env.KERNEL_ROOT }}/common
       run: |
         SYMBOL_LIST=android/abi_gki_aarch64_xiaomi
@@ -449,8 +465,8 @@ jobs:
         if [[ -f common/modules.bzl ]]; then
           # Insert before the closing bracket of COMMON_GKI_MODULES_LIST or _COMMON_GKI_MODULES_LIST
           echo "Audio modules injection: adding to module list"
-          if [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "5.15" && $ACTUAL_SUBLEVEL -le 110 && "${{ inputs.os_patch_level }}" != "2023-09" ]] \
-          || [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "6.1" && $ACTUAL_SUBLEVEL -le 25 && "${{ inputs.os_patch_level }}" != "2023-09" ]]; then
+          if [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "5.15" && $SUBLEVEL -le 110 && "${{ env.OS_PATCH_LEVEL }}" != "2023-09" ]] \
+          || [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "6.1" && $SUBLEVEL -le 25 && "${{ env.OS_PATCH_LEVEL }}" != "2023-09" ]]; then
             # snd-aloop
             sed -i '/COMMON_GKI_MODULES_LIST = \[/,/^[[:space:]]*\]/{/^[[:space:]]*\]$/i\    "sound/drivers/snd-aloop.ko",
             }' common/modules.bzl
@@ -488,22 +504,22 @@ jobs:
 
         # ABI compare bypass per kernel/android version
         # Edit each block as needed per version
-        if [[ "${{ inputs.android_version }}" == "android12" && "${{ inputs.kernel_version }}" == "5.10" ]]; then
+        if [[ "${{ env.ANDROID_VERSION }}" == "android12" && "${{ env.KERNEL_VERSION }}" == "5.10" ]]; then
           sed -i 's/^\s*exit 1$/    echo "Who Cares? Bypassing Now!"/' build/abi/compare_to_symbol_list
-        elif [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.10" ]]; then
+        elif [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.10" ]]; then
           sed -i 's/^\s*exit 1$/    echo "Who Cares? Bypassing Now!"/' build/kernel/abi/compare_to_symbol_list
-        elif [[ "${{ inputs.android_version }}" == "android13" && "${{ inputs.kernel_version }}" == "5.15" ]]; then
+        elif [[ "${{ env.ANDROID_VERSION }}" == "android13" && "${{ env.KERNEL_VERSION }}" == "5.15" ]]; then
           sed -i 's/^\s*exit 1$/    echo "Who Cares? Bypassing Now!"/' build/kernel/abi/compare_to_symbol_list
-        elif [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "5.15" ]]; then
+        elif [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "5.15" ]]; then
           perl -i -pe 's/^(\s*)return 1$/$1print("Who Cares? Bypassing Now!")\n$1return 0/g if /if missing_symbols:/../return 1/' build/kernel/abi/check_buildtime_symbol_protection.py
-        elif [[ "${{ inputs.android_version }}" == "android14" && "${{ inputs.kernel_version }}" == "6.1" ]]; then
+        elif [[ "${{ env.ANDROID_VERSION }}" == "android14" && "${{ env.KERNEL_VERSION }}" == "6.1" ]]; then
           perl -i -pe 's/^(\s*)return 1$/$1print("Who Cares? Bypassing Now!")\n$1return 0/g if /if missing_symbols:/../return 1/' build/kernel/abi/check_buildtime_symbol_protection.py
-        elif [[ "${{ inputs.android_version }}" == "android15" && "${{ inputs.kernel_version }}" == "6.6" ]]; then
+        elif [[ "${{ env.ANDROID_VERSION }}" == "android15" && "${{ env.KERNEL_VERSION }}" == "6.6" ]]; then
           perl -i -pe 's/^(\s*)return 1$/$1print("Who Cares? Bypassing Now!")\n$1return 0/g if /if missing_symbols:/../return 1/' build/kernel/abi/check_buildtime_symbol_protection.py
         fi
 
     - name: Append ashmem exports if missing
-      if: ${{ inputs.android_version == 'android16' && inputs.kernel_version == '6.12' && false }}
+      if: ${{ env.ANDROID_VERSION == 'android16' && env.KERNEL_VERSION == '6.12' && false }}
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         FILE=common/drivers/staging/android/ashmem.c
@@ -541,7 +557,7 @@ jobs:
       working-directory: ${{ env.KERNEL_ROOT }}
       run: |
         #Wild to Kernel Version (replace last instance only)
-        if [[ "${{ inputs.kernel_version }}" == "5."* ]] || [[ "${{ inputs.kernel_version }}" == "6.1" ]]; then
+        if [[ "${{ env.KERNEL_VERSION }}" == "5."* ]] || [[ "${{ env.KERNEL_VERSION }}" == "6.1" ]]; then
           case ${{ matrix.build_type }} in
             TheWildJames)
               perl -i -0777 -pe 's/(.*)echo "\$res"/$1echo "\$res-🟢-Wild-Exclusive"/s' ./common/scripts/setlocalversion
@@ -586,7 +602,7 @@ jobs:
         if [ -f "build/build.sh" ]; then
           GKI_DEFCONFIG_FRAGMENT="${{ env.DEFCONFIG_FRAGMENT }}" LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh || exit 1
         else
-          if [[ "${{ inputs.android_version }}" == "android14" ]]; then
+          if [[ "${{ env.ANDROID_VERSION }}" == "android14" ]]; then
             tools/bazel build --config=fast --lto=thin --defconfig_fragment=//common:arch/arm64/configs/wild_gki.fragment //common:kernel_aarch64_dist || exit 1
           else
             tools/bazel build --config=fast --lto=none --defconfig_fragment=//common:arch/arm64/configs/wild_gki.fragment //common:kernel_aarch64_dist || exit 1
@@ -596,8 +612,8 @@ jobs:
     - name: Prepare AnyKernel3 Zip
       run: |
         # Copy Image from normal build locations
-        if [ -f "$KERNEL_ROOT/out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" ]; then
-          cp "$KERNEL_ROOT/out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist/Image" "$ANYKERNEL3/Image"
+        if [ -f "$KERNEL_ROOT/out/${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}/dist/Image" ]; then
+          cp "$KERNEL_ROOT/out/${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}/dist/Image" "$ANYKERNEL3/Image"
         elif [ -f "$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/Image" ]; then
           cp "$KERNEL_ROOT/bazel-bin/common/kernel_aarch64/Image" "$ANYKERNEL3/Image"
         else
@@ -614,8 +630,8 @@ jobs:
 
         mkdir -p AnyKernel3/modules/data/adb/lkm
 
-        if [[ "${{ inputs.android_version }}" == "android12" || "${{ inputs.android_version }}" == "android13" ]]; then
-          SRC_DIR="$KERNEL_ROOT/out/${{ inputs.android_version }}-${{ inputs.kernel_version }}/dist"
+        if [[ "${{ env.ANDROID_VERSION }}" == "android12" || "${{ env.ANDROID_VERSION }}" == "android13" ]]; then
+          SRC_DIR="$KERNEL_ROOT/out/${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}/dist"
         else
           SRC_DIR="$KERNEL_ROOT/bazel-bin/common/kernel_aarch64"
         fi
