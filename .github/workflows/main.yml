@@ -49,7 +49,7 @@ on:
 
 jobs:
   build-kernels:
-    uses: ./.github/workflows/build-kernels.yml
+    uses: ./.github/workflows/prepare-kernels.yml
     secrets: inherit
     with:
       kernel_type: ${{ inputs.kernel_type }}
